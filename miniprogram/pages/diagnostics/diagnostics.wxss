@@ -1,0 +1,11 @@
+page { background: #f2f2f7; color: #1c1c1e; }
+.page { padding: 40rpx 32rpx 80rpx; }
+.eyebrow { color: #007aff; font-size: 22rpx; font-weight: 600; }
+.title { font-size: 46rpx; font-weight: 700; margin: 18rpx 0; }
+.intro, .notice { font-size: 26rpx; line-height: 1.7; color: #636366; }
+.notice { margin: 24rpx 0; padding: 24rpx; background: #fff; border-radius: 20rpx; }
+.action { color: #fff; background: #007aff; font-size: 28rpx; border-radius: 22rpx; margin-bottom: 28rpx; }
+.card { background: #fff; padding: 26rpx; margin-bottom: 18rpx; border-radius: 22rpx; }
+.name { font-size: 30rpx; font-weight: 600; }
+.url { font-size: 23rpx; color: #8e8e93; margin: 10rpx 0; }
+.result { font-size: 25rpx; line-height: 1.5; word-break: break-all; }

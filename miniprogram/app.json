@@ -1,0 +1,40 @@
+{
+  "pages": [
+    "pages/today/today",
+    "pages/schedule/schedule",
+    "pages/more/more",
+    "pages/login/login",
+    "pages/diagnostics/diagnostics",
+    "pages/campus/campus",
+    "pages/grades/grades",
+    "pages/electricity/electricity"
+  ],
+  "window": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "郑大轻享",
+    "navigationBarBackgroundColor": "#f2f2f7",
+    "backgroundColor": "#f2f2f7"
+  },
+  "tabBar": {
+    "color": "#8e8e93",
+    "selectedColor": "#007aff",
+    "backgroundColor": "#ffffff",
+    "list": [
+      {
+        "pagePath": "pages/today/today",
+        "text": "今天"
+      },
+      {
+        "pagePath": "pages/schedule/schedule",
+        "text": "课表"
+      },
+      {
+        "pagePath": "pages/more/more",
+        "text": "更多"
+      }
+    ]
+  },
+  "style": "v2",
+  "componentFramework": "glass-easel",
+  "lazyCodeLoading": "requiredComponents"
+}

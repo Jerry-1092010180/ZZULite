@@ -1,0 +1,17 @@
+{
+  "name": "zzulite",
+  "version": "0.1.0",
+  "description": "郑大轻享 · 轻量校园助手微信小程序（开发中）",
+  "scripts": {
+    "test": "node tests/run.cjs"
+  },
+  "keywords": [],
+  "author": "Jerry-1092010180",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "miniprogram-api-typings": "^2.8.3-1",
+    "typescript": "~4.1.2"
+  },
+  "private": true
+}

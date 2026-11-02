@@ -1,0 +1,3 @@
+.search{background:#f2f2f7;border-radius:16rpx;padding:22rpx;margin:24rpx 0;font-size:27rpx}.course{flex:1;min-width:0}.score{font-size:42rpx;font-weight:600;color:#007aff;max-width:200rpx;word-break:break-all}
+
+.attempts{margin:12rpx 0;display:flex;flex-wrap:wrap}.attempt{display:inline-block;background:#fff1df;color:#9a4300;border:1rpx solid #e6a85b;border-radius:10rpx;padding:6rpx 14rpx;font-size:25rpx;font-weight:600;margin:0 12rpx 8rpx 0}

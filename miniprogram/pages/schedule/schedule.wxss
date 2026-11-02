@@ -1,0 +1,2 @@
+.day{margin:32rpx 0}.free{padding:22rpx 0;color:#aeaeb2;font-size:25rpx}.lesson{display:flex;background:white;border-radius:24rpx;margin-top:18rpx;padding:26rpx;}.lesson-mark{min-width:58rpx;font-size:30rpx;font-weight:600;color:#007aff;border-right:5rpx solid #007aff;padding-right:20rpx}.lesson-body{flex:1;min-width:0}.lesson-body .heading{font-size:29rpx}
+.lesson-mark{margin-right:24rpx}.lesson-body .row{align-items:flex-start}.lesson-body .heading{flex:1;min-width:0}.lesson-body .badge{margin-left:12rpx}

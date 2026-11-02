@@ -1,0 +1,4 @@
+.hero{background:#007aff;border-radius:32rpx;padding:40rpx 32rpx;color:#fff}.hero-label{font-size:38rpx;font-weight:600}.hero-detail{font-size:26rpx;opacity:.8;margin:16rpx 0 40rpx}.hero-action{font-size:26rpx}.section{margin:44rpx 0 20rpx}.time{color:#007aff;font-size:32rpx;min-width:72rpx}.course{flex:1}
+.time{margin-right:24rpx;flex-shrink:0}.course{min-width:0}.card.row{flex-wrap:nowrap}
+
+.cache-hint{margin:16rpx 0 24rpx}
