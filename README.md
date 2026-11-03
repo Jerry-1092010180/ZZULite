@@ -63,4 +63,6 @@ npm test
 
 学校认证、教务及一卡通协议参考 [ZZUPocket](https://github.com/3beuml/ZZUPocket)，感谢原作者及相关开源项目。RSA 兼容实现使用 JSEncrypt。详见[第三方说明](docs/THIRD_PARTY.md)。
 
-本项目采用 [MIT License](LICENSE)。第三方代码保留各自的版权声明和许可文本。
+本项目现采用 [ZZULite Attribution License 1.0](LICENSE)，是要求用户可见署名的自定义许可证，**不是标准 MIT，也未声称获 OSI 批准**。允许使用、修改、分发和商业使用；发布基于本项目的软件时，须在“关于／致谢”等正常可访问页面标注 `Jerry-1092010180` 与原仓库地址。详见 [署名要求与历史版本说明](ATTRIBUTION.md)。
+
+已按 MIT 发布的历史版本不因本次变更而被追溯撤销授权。第三方代码保留各自的版权声明和许可文本。

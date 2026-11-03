@@ -55,4 +55,4 @@ node tests/run.cjs /absolute/path/to/typescript/lib/typescript.js
 
 ## 发布前
 
-排除私有项目配置、个人采集设备代码和数据、数据库、日志、临时文件及凭据；保留第三方许可证。项目采用 MIT 许可证。正式上传、备案和提审状态应以后续仓库公告与微信后台为准。
+排除私有项目配置、个人采集设备代码和数据、数据库、日志、临时文件及凭据；保留第三方许可证。项目采用自定义 ZZULite Attribution License 1.0，发布衍生产品须保留用户可见署名，详见根目录 LICENSE 与 ATTRIBUTION.md。正式上传、备案和提审状态应以后续仓库公告与微信后台为准。

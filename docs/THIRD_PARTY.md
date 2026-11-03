@@ -26,4 +26,4 @@
 
 ## 项目自身许可
 
-ZZULite 自身采用根目录 LICENSE 所列 MIT 许可证。第三方代码仍保留各自许可，不得删除或替换其版权声明。
+ZZULite 原作者有权许可的原创贡献现采用根目录 LICENSE 所列 ZZULite Attribution License 1.0（自定义、非标准 MIT）。第三方代码仍按各自许可使用，不受本项目新增署名条件的重新许可；不得删除或替换其版权声明。历史 MIT 版本说明见 ../ATTRIBUTION.md。

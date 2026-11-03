@@ -1,16 +1,71 @@
-MIT License
+ZZULite Attribution License 1.0
+Effective date: 2026-11-03
 
 Copyright (c) 2026 Jerry-1092010180
+Original project: ZZULite (郑大轻享)
+Original repository: https://github.com/Jerry-1092010180/ZZULite
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This is a custom software license. It is NOT the MIT License and is not
+represented as an OSI-approved license.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. Permission
+
+Subject to the conditions below, permission is granted, free of charge, to
+use, copy, modify, merge, publish, distribute, sublicense and sell copies of
+the copyright holder's original contributions covered by this license (the
+"Software"), and to permit recipients to do so. Commercial use is allowed.
+No requirement to publish source code is imposed by this license.
+
+2. Preservation of notices
+
+All copies or substantial portions of the Software must retain this license,
+the copyright notice above and the original repository address. Source
+redistributions must also retain the attribution information in ATTRIBUTION.md.
+Redistributions under other terms must preserve these obligations for the
+Software; downstream terms must not remove or contradict them.
+
+3. User-visible attribution
+
+If you distribute, publish or make available to users an application, website,
+mini program or other product containing the Software or a substantial portion
+of it, including a modified version, you must display the following attribution
+in an ordinary user-accessible About, Credits, Acknowledgements, Legal Notices
+or equivalent screen or page:
+
+  Based on ZZULite (郑大轻享) by Jerry-1092010180
+  https://github.com/Jerry-1092010180/ZZULite
+
+The following Chinese equivalent is also acceptable:
+
+  基于 Jerry-1092010180 的 ZZULite（郑大轻享）开发
+  https://github.com/Jerry-1092010180/ZZULite
+
+The attribution must be reasonably readable and accessible during normal use,
+without developer tools or inspection of source code. The repository URL must
+be a working hyperlink where the platform permits external links; otherwise
+it must be displayed in full as readable or copyable text. A source comment
+or repository README alone does not meet this condition for a product with a
+user interface. A product with no user interface may instead include the
+attribution in its ordinary user-facing documentation or help output.
+
+You need not display a startup advertisement, watermark or notice on every
+screen. Purely private use without providing a product to other users does
+not trigger the user-interface requirement.
+
+4. Accuracy and third-party rights
+
+You may describe your own modifications and use your own product name, but
+must not remove the attribution required above or falsely claim authorship
+of the original Software. Attribution does not imply endorsement by the
+original author and does not grant trademark rights.
+
+This license covers only rights the copyright holder can grant in their own
+contributions. Third-party components and their notices remain governed by
+their respective licenses. It does not relicense third-party code or withdraw
+permissions already granted for versions previously published under MIT or
+another license. See ATTRIBUTION.md and docs/THIRD_PARTY.md.
+
+5. Disclaimer
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
