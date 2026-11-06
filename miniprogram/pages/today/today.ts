@@ -2,6 +2,7 @@
 import { campusDate, todayCache, coursesOn, coversDate, nextDayDelay, syncLabel } from '../../services/schedule-cache';
 import type { Session } from '../../services/schedule';
 Page({
+    demo() { wx.navigateTo({ url: '/pages/demo/demo' }); },
     data: { date: '', courses: [] as Session[], hasCache: false, hasToday: false, updated: '', cacheHint: '', emptyMessage: '正在读取本机课表' },
     _midnightTimer: 0,
     onLoad() { this.renderToday(); },

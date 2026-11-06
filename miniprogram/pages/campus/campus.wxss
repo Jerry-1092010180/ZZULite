@@ -1,1 +1,2 @@
 .amount{font-size:76rpx;letter-spacing:-2rpx;margin:32rpx 0 12rpx;font-weight:600;color:#007aff}.select{padding:28rpx 0;border-bottom:1rpx solid #f2f2f7;font-size:28rpx}.occupancy{margin-top:20rpx;font-size:28rpx}
+.guide{margin:20rpx 0 12rpx}.guide-line{font-size:26rpx;color:#202128;line-height:1.8;margin:8rpx 0}.portal{display:block;background:#f2f2f7;border-radius:16rpx;padding:20rpx;font-size:24rpx;color:#007aff;word-break:break-all;line-height:1.6}

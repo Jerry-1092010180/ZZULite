@@ -51,9 +51,9 @@ function ticket(cas: string): Promise<string> {
         const timer = setTimeout(() => { if (!done) { done = true; reject(new Error('一卡通登录跳转超时，学校登录仍保留，请稍后重试')); } }, 16000);
         const accept = (headers: Record<string, unknown>): boolean => {
             const key = Object.keys(headers).find(key => key.toLowerCase() === 'location');
-            const tid = tidFromLocation(key && headers[key]);
-            if (!tid || done) return false;
-            done = true; clearTimeout(timer); resolve(tid); return true;
+            const value = tidFromLocation(key && headers[key]);
+            if (!value || done) return false;
+            done = true; clearTimeout(timer); resolve(value); return true;
         };
         const task = wx.request<string>({
             url: BASE + '/server/auth/host/open?' + query(params),
@@ -74,7 +74,24 @@ function ticket(cas: string): Promise<string> {
         });
     });
 }
-async function ecardToken(): Promise<string> {
+// The official H5 router supports singleAppId + accessToken and removes the
+// credential from location.search after importing it. singleAppId=recharge is
+// its published route-map key; it also replaces a stale H5 session. Never use
+// the CAS idToken here, or return the one-use tid to a router that may redeem
+// it repeatedly. No order or payment request is made by this method.
+export async function officialCardEntry(): Promise<string> {
+    const owner = identity(), cas = token();
+    if (!owner || !cas) throw new Error('请先登录学校账号');
+    const credential = await ecardToken();
+    const verified = await request<{ success?: boolean }>(BASE + '/server/recharge/config', 'POST', {}, { Authorization: credential });
+    if (identity() !== owner || token() !== cas) throw new Error('账号已变化，请重新获取官方入口');
+    if (!verified || verified.success !== true) {
+        if (access && access.value === credential) access = null;
+        throw new Error('学校未确认一卡通会话有效，请重新获取入口');
+    }
+    return BASE + '/?' + query({ singleAppId: 'recharge', accessToken: credential }) + '#/pages_home/home';
+}
+export async function ecardToken(): Promise<string> {
     const owner = identity(), cas = token();
     if (access && access.owner === owner && access.cas === cas && access.until > Date.now()) return access.value;
     if (pending && pending.cas === cas) return pending.promise;

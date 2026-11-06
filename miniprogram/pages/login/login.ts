@@ -1,5 +1,6 @@
 import * as auth from '../../services/auth';
 Page({
+    demo() { wx.navigateTo({ url: '/pages/demo/demo' }); },
     data: { account: '', password: '', code: '', sms: false, busy: false, error: '', cooldown: 0 },
     _timer: 0,
     input(e: WechatMiniprogram.Input) {
