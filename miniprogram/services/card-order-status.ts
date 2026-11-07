@@ -3,6 +3,22 @@ import { ecardToken } from './electricity';
 import { queryRechargeCapabilities } from './card-recharge';
 import { request } from './network';
 export interface SchoolOrderStatus { code: string; description: string }
+export interface CashierOrderQuery { merchantno: string; orderno: string; amountYuan: number }
+
+export async function isCashierOrderPaid(order: CashierOrderQuery): Promise<boolean> {
+    const result = await request<{ returncode?: string; data?: unknown; tradestate?: string }>(
+        'https://payment.v.zzu.edu.cn/WapCashDesk/queryOrder', 'POST',
+        { merchantno: order.merchantno, orderno: order.orderno, ordernotype: '1' }
+    );
+    if (result?.returncode !== 'SUCCESS') return false;
+    const raw = result.tradestate ? result : typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+    const payment = raw as { tradestate?: string; txamt?: unknown; partnerjourno?: unknown; merchantno?: unknown } | null;
+    return payment?.tradestate === 'SUCCESS'
+        && (typeof payment.txamt === 'string' || typeof payment.txamt === 'number')
+        && Number(payment.txamt) === Math.round(order.amountYuan * 100)
+        && (payment.partnerjourno == null || String(payment.partnerjourno) === order.orderno)
+        && (payment.merchantno == null || String(payment.merchantno) === order.merchantno);
+}
 export function parseOrderStatus(value: unknown): SchoolOrderStatus {
     const result = value as { success?: unknown; code?: unknown } | null;
     if (!result || result.success !== true || (typeof result.code !== 'string' && typeof result.code !== 'number')) throw new Error('学校未返回可确认的订单状态');

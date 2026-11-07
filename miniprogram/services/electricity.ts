@@ -75,11 +75,11 @@ function ticket(cas: string): Promise<string> {
     });
 }
 // The official H5 router supports singleAppId + accessToken and removes the
-// credential from location.search after importing it. singleAppId=recharge is
-// its published route-map key; it also replaces a stale H5 session. Never use
+// credential from location.search after importing it. The route-map keys are
+// recharge for card top-ups and electric for electricity. Never use
 // the CAS idToken here, or return the one-use tid to a router that may redeem
 // it repeatedly. No order or payment request is made by this method.
-export async function officialCardEntry(): Promise<string> {
+async function officialEcardEntry(service: 'recharge' | 'electric'): Promise<string> {
     const owner = identity(), cas = token();
     if (!owner || !cas) throw new Error('请先登录学校账号');
     const credential = await ecardToken();
@@ -89,7 +89,13 @@ export async function officialCardEntry(): Promise<string> {
         if (access && access.value === credential) access = null;
         throw new Error('学校未确认一卡通会话有效，请重新获取入口');
     }
-    return BASE + '/?' + query({ singleAppId: 'recharge', accessToken: credential }) + '#/pages_home/home';
+    return BASE + '/?' + query({ singleAppId: service, accessToken: credential }) + '#/pages_home/home';
+}
+export function officialCardEntry(): Promise<string> {
+    return officialEcardEntry('recharge');
+}
+export function officialElectricityEntry(): Promise<string> {
+    return officialEcardEntry('electric');
 }
 export async function ecardToken(): Promise<string> {
     const owner = identity(), cas = token();

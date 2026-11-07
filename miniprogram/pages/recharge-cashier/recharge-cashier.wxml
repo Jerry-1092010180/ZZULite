@@ -1,0 +1,14 @@
+<web-view wx:if="{{url}}" src="{{url}}" binderror="onCashierError"></web-view>
+<view wx:else class="page">
+  <view class="card">
+    <block wx:if="{{methods.length}}">
+      <view class="heading">本单充值 {{amount}} 元</view>
+      <view class="small">此渠道已核实的付款方式</view>
+      <view wx:for="{{methods}}" wx:key="*this" class="row">{{item}}</view>
+      <view class="small">请在手机浏览器打开学校收银台，核对金额后选择付款方式。</view>
+    </block>
+    <view wx:if="{{message}}" class="small" role="status">{{message}}</view>
+    <button wx:if="{{canCopy}}" class="primary" bindtap="copyCheckout">复制学校收银台链接</button>
+    <button class="secondary" bindtap="back">返回充值页</button>
+  </view>
+</view>

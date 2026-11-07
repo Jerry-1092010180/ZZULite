@@ -96,6 +96,14 @@ async function verifyOfficialEntry(){
   h.wx.setClipboardData=o=>o.fail({});
   await view.prepareOfficialRecharge();
   assert.ok(view.data.rechargeHint.includes('复制失败'));
+  h.memory[energy.ENERGY_KEY]={account:'20260001',meters:{ac:{room:'01-02--03-04',name:'测试楼 / 空调 / 04'}},samples:[]};
+  h.load('pages/electricity/electricity.ts');
+  const electricPage=h.pages[1],electricView={...electricPage,_visible:true,data:{...electricPage.data},setData(v){Object.assign(this.data,v)}};
+  h.wx.showModal=o=>{if(o.showCancel!==false){assert.match(o.content,/测试楼 \/ 空调 \/ 04/);o.success({confirm:true});}};
+  h.wx.setClipboardData=o=>{assert.equal(o.data,target.replace('singleAppId=recharge','singleAppId=electric'));o.success({});};
+  await electricView.prepareElectricityPayment({currentTarget:{dataset:{kind:'ac'}}});
+  assert.match(electricView.data.paymentHint,/已复制学校缴电费入口/);
+  assert.doesNotMatch(JSON.stringify(electricView.data),/ecard-session-fixture/);
   h.wx.request=o=>{deliver=()=>o.success({statusCode:200,data:{success:true}});return {};};
   const inFlight=energy.officialCardEntry();await Promise.resolve();auth.logout();deliver();
   await assert.rejects(()=>inFlight,/账号已变化/);
@@ -112,29 +120,49 @@ async function verifyRechargePreparation(){
   auth.logout();await view.check();assert.ok(view.data.error.includes('登录'));assert.equal(view.data.checked,false);
 }
 async function verifyPreparedOrderAdapter(){
-  for(const fail of [false,true]){
+  const cases=[
+    {amount:10},
+    {amount:5.25},
+    {amount:10,fail:true},
+    {amount:88,rejection:'充值金额超过上限',expected:/充值金额超过学校限额/},
+    {amount:55,rejection:'提交失败，请稍后再试',expected:/具体原因未明确/},
+    {amount:55,rejection:'请求过于频繁，请稍后再试',expected:/频率或次数受限/},
+  ];
+  for(const {amount,fail,rejection,expected} of cases){
     const h=harness();await h.load('services/auth.ts').beginLogin('20260001','测试密码123!');
     h.load('services/electricity.ts').ecardToken=async()=>'test-card-token';
     const config={amounts:['10','20'],wapEnabled:true,webPayCode:'07'};
     h.load('services/card-recharge.ts').queryRechargeCapabilities=async()=>config;
     const service=h.load('services/card-order.ts');
-    assert.throws(()=>service.validateOrderAmount(1,config));assert.throws(()=>service.validateOrderAmount(10.5,config));
+    for(const invalid of [4.99,5.001,1000.01,NaN])assert.throws(()=>service.validateOrderAmount(invalid,config));
+    service.validateOrderAmount(5,config);
     assert.throws(()=>service.parseSchoolOrder({},10));
     let orders=0;
     h.wx.request=o=>{
       assert.equal(o.header.Authorization,'test-card-token');
       if(o.url.endsWith('/consume/transaction')){queueMicrotask(()=>o.success({statusCode:200,data:{success:true,resultData:'test-transaction'}}));return;}
       assert.ok(o.url.endsWith('/recharge/pay'));orders++;
-      assert.equal(o.header.transactionId,'test-transaction');assert.equal(o.data.amt,'10');assert.equal(o.data.payCode,'07');
+      assert.equal(o.header.transactionId,'test-transaction');assert.equal(o.data.amt,String(amount));assert.equal(o.data.payCode,'07');
       if(fail){queueMicrotask(()=>o.fail({errMsg:'timeout'}));return;}
-      queueMicrotask(()=>o.success({statusCode:200,data:{success:true,resultData:{partnerJourno:'123456789012345',wapPayInfo:{callAccountid:'fixture',orderInfo:{partnerid:'fixture',journo:'fixture-order',merchantno:'fixture',channelno:'fixture',payResultUrl:'https://ecard.v.zzu.edu.cn/',goodsname:'fixture',txamt:'10',openid:'fixture'},extend:{accessToken:'temporary-fixture'}}}}}));
+      if(rejection){queueMicrotask(()=>o.success({statusCode:200,data:{success:false,resultData:{code:-12,message:rejection+' PRIVATE-FIXTURE'}}}));return;}
+      queueMicrotask(()=>o.success({statusCode:200,data:{success:true,resultData:{partnerJourno:'123456789012345',wapPayInfo:{callAccountid:'fixture',orderInfo:{partnerid:'fixture',journo:'fixture-order',merchantno:'fixture',channelno:'fixture',payResultUrl:'https://ecard.v.zzu.edu.cn/',goodsname:'fixture',txamt:String(Math.round(amount*100)),openid:'fixture'},extend:{accessToken:'temporary-fixture'}}}}}));
     };
-    if(fail)await assert.rejects(()=>service.createSchoolOrder(10));
+    if(rejection){
+      await assert.rejects(()=>service.createSchoolOrder(amount),expected);
+      const diagnosis=await service.schoolOrderRouteDiagnostics();
+      assert.ok(diagnosis.includes('提交金额：'+amount+' 元'));
+      assert.match(diagnosis,expected);
+      assert.match(diagnosis,/学校响应码 -12/);
+      assert.doesNotMatch(diagnosis,/PRIVATE-FIXTURE/);
+      assert.equal(service.pendingSchoolOrder(),null);
+    }
+    else if(fail)await assert.rejects(()=>service.createSchoolOrder(amount));
     else {
-      const order=await service.createSchoolOrder(10);assert.equal(order.reference,'123456789012345');assert.equal(JSON.parse(new URL(order.checkoutUrl).searchParams.get('orderInfo')).journo,'fixture-order');assert.ok(order.checkoutUrl.startsWith('https://payment.v.zzu.edu.cn/'));assert.equal(service.pendingSchoolOrder().reference,'123456789012345');assert.equal(h.memory['zzu.cardOrder.pending'].reference,'123456789012345');
+      const order=await service.createSchoolOrder(amount);assert.equal(order.reference,'123456789012345');assert.equal(order.amountYuan,amount);assert.equal(JSON.parse(new URL(order.checkoutUrl).searchParams.get('orderInfo')).journo,'fixture-order');assert.ok(order.checkoutUrl.startsWith('https://payment.v.zzu.edu.cn/'));assert.equal(service.pendingSchoolOrder().reference,'123456789012345');assert.equal(h.memory['zzu.cardOrder.pending'].reference,'123456789012345');
       assert.ok(h.secure['zzu.cardOrder.checkout.v1'].checkoutUrl.includes('temporary-fixture'));
       const info=JSON.parse(new URL(order.checkoutUrl).searchParams.get('orderInfo'));
       const variant={partnerJourno:'123456789012345',wapPayInfo:{orderInfo:{...info,merchantno:123,channelno:7,txamt:1000},extend:info.extend}};
+      assert.throws(()=>service.parseSchoolOrder(variant,5.25),/金额不一致/);
       const parsedVariant=service.parseSchoolOrder(variant,10);assert.equal(new URL(parsedVariant.checkoutUrl).searchParams.get('callAccountid'),'');assert.equal(JSON.parse(new URL(parsedVariant.checkoutUrl).searchParams.get('orderInfo')).txamt,1000);
       variant.wapPayInfo.orderInfo.merchantno=true;assert.throws(()=>service.parseSchoolOrder(variant,10),/merchantno/);
       const restart=harness();Object.assign(restart.memory,h.memory);Object.assign(restart.secure,h.secure);await restart.load('services/auth.ts').ready();
@@ -191,12 +219,29 @@ async function verifyCheckoutReturn(){
   const ref='123456789012345';
   h.memory['zzu.cardOrder.pending']={account:'20260001',amountYuan:10,at:123,state:'unresolved',reference:ref};
   const orders=h.load('services/card-order.ts');let queries=0;
-  orders.pendingSchoolOrder=()=>({reference:ref,checkoutUrl:'https://payment.v.zzu.edu.cn/fixture',amountYuan:10});
+  const checkoutUrl='https://payment.v.zzu.edu.cn/WapCashDesk/e-pay/payways.html?orderInfo=fixture';
+  const order={reference:ref,checkoutUrl,amountYuan:10};
+  orders.pendingSchoolOrder=()=>order;
   orders.queryAndReconcileSchoolOrder=async reference=>{queries++;assert.equal(reference,ref);return {code:'0',description:'学校支付中，尚未确认',resolvedLocal:false};};
   h.wx.request=()=>{throw new Error('Copying or returning must never submit an order')};
   h.load('pages/recharge-test/recharge-test.ts');const p=h.pages[0],v={...p,data:JSON.parse(JSON.stringify(p.data)),setData(x){Object.assign(this.data,x)}};
+  h.load('pages/recharge-cashier/recharge-cashier.ts');
+  const cashier={...h.pages[1],data:{...h.pages[1].data},setData(x){Object.assign(this.data,x)}};
+  let navigation;
+  h.wx.navigateTo=o=>{navigation=o;o.complete();};
+  v.onShow();assert.equal(v.data.canPreviewCheckout,true);
+  v.openCheckout();assert.equal(navigation.url,'/pages/recharge-cashier/recharge-cashier');
+  cashier.onLoad();assert.equal(cashier.data.url,checkoutUrl);
+  cashier.onCashierError();assert.equal(cashier.data.url,'');assert.equal(cashier.data.canCopy,true);
+  for (const invalidUrl of [checkoutUrl.replace('payways.html','wechat.html'),checkoutUrl.replace('.edu.cn/','.edu.cn.example/'),checkoutUrl.replace('https:','http:')]) {
+    order.checkoutUrl=invalidUrl;
+    cashier.onLoad();assert.equal(cashier.data.url,'');
+  }
+  order.checkoutUrl=checkoutUrl.replace('fixture',encodeURIComponent(JSON.stringify({partnerid:'PT000008',merchantno:'20180600021',channelno:'103'})));
+  cashier.onLoad();assert.equal(cashier.data.url,'');assert.deepEqual(Array.from(cashier.data.methods),['微信支付','支付宝']);
+  order.checkoutUrl=checkoutUrl;
   let copied=0;
-  h.wx.setClipboardData=o=>{copied++;assert.equal(o.data,'https://payment.v.zzu.edu.cn/fixture');o.success({});};
+  h.wx.setClipboardData=o=>{copied++;assert.equal(o.data,checkoutUrl);o.success({});};
   h.wx.showModal=o=>o.success({confirm:false});
   await v.copyCheckout();assert.equal(copied,0);
   let copiedGuide;
@@ -208,6 +253,33 @@ async function verifyCheckoutReturn(){
   copiedGuide=undefined;
   h.wx.setClipboardData=o=>o.fail({});await v.copyCheckout();assert.equal(copiedGuide,undefined);v.onHide();await v.onShow();assert.equal(queries,1);
   h.wx.setClipboardData=o=>o.success({});await v.copyCheckout();v.onHide();auth.logout();await v.onShow();assert.equal(queries,1);assert.equal(v.data.reference,'');
+}
+async function verifyCashierLookupForExistingOrder(){
+  const h=harness(),auth=h.load('services/auth.ts');await auth.beginLogin('20260001','测试密码123!');
+  const reference='123456789012345',journo='999999999999999',at=Date.now()-3600000;
+  const marker={account:'20260001',amountYuan:6,at,state:'created',reference,payCode:'07'};
+  h.memory['zzu.cardOrder.pending']=marker;
+  const info={merchantno:'20180600021',journo,extend:{accessToken:'fixture-secret'}};
+  h.secure['zzu.cardOrder.checkout.v1']={...marker,expiresAt:at+1800000,checkoutUrl:'https://payment.v.zzu.edu.cn/WapCashDesk/e-pay/payways.html?orderInfo='+encodeURIComponent(JSON.stringify(info))};
+  h.load('services/card-order-status.ts').querySchoolOrder=async()=>({code:'-1',description:'学校返回查询异常'});
+  let amount=500,lookups=0;
+  h.wx.request=o=>{
+    assert.equal(o.url,'https://payment.v.zzu.edu.cn/WapCashDesk/queryOrder');
+    assert.deepEqual(JSON.parse(JSON.stringify(o.data)),{merchantno:'20180600021',orderno:journo,ordernotype:'1'});
+    assert.equal(o.header.Authorization,undefined);
+    lookups++;
+    o.success({statusCode:200,data:{returncode:'SUCCESS',data:JSON.stringify({tradestate:'SUCCESS',txamt:amount,partnerjourno:journo})}});
+  };
+  const orders=h.load('services/card-order.ts');
+  assert.doesNotMatch((await orders.queryAndReconcileSchoolOrder(reference)).description,/已支付/);
+  amount=600;
+  const paid=await orders.queryAndReconcileSchoolOrder(reference);
+  assert.match(paid.description,/已支付/);
+  assert.match(paid.description,/到账仍待核对/);
+  assert.equal(paid.resolvedLocal,false);
+  assert.equal(orders.hasUnresolvedSchoolOrder(),true);
+  await orders.queryAndReconcileSchoolOrder('111111111111111');
+  assert.equal(lookups,2);
 }
 async function verifyUnpaidRecovery(){
   const h=harness(),auth=h.load('services/auth.ts');await auth.beginLogin('20260001','测试密码123!');
@@ -295,6 +367,7 @@ async function run(){
   await verifyRawCheckoutRecovery();
   await verifyUnpaidRecovery();
   await verifyCheckoutReturn();
+  await verifyCashierLookupForExistingOrder();
   await verifyOfficialGuide();
   await verifyOfficialEntry();
   await verifyOrderQueryRecovery();

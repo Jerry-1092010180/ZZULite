@@ -2,11 +2,29 @@ import { identity } from './auth';
 import { ecardToken } from './electricity';
 import { queryRechargeCapabilities, RechargeCapabilities } from './card-recharge';
 import { request } from './network';
-import { querySchoolOrder, SchoolOrderStatus } from './card-order-status';
+import { isCashierOrderPaid, querySchoolOrder, SchoolOrderStatus } from './card-order-status';
 import { supportsEncryptedStorage } from './session-storage';
 
 const BASE = 'https://ecard.v.zzu.edu.cn';
 export interface SchoolOrder { amountYuan: number; reference: string; checkoutUrl: string }
+export function schoolCashierPreviewUrl(order: SchoolOrder | null): string {
+    const url = order?.checkoutUrl || '';
+    return /^https:\/\/payment\.v\.zzu\.edu\.cn\/WapCashDesk\/e-pay\/payways\.html\?orderInfo=/.test(url) ? url : '';
+}
+function cashierOrderInfo(url: string): Record<string, unknown> | null {
+    const match = url.match(/^https:\/\/payment\.v\.zzu\.edu\.cn\/WapCashDesk\/e-pay\/(?:payways|wechat)\.html\?orderInfo=([^&]+)/);
+    if (!match) return null;
+    try { return JSON.parse(decodeURIComponent(match[1])); } catch (_) { return null; }
+}
+
+export function knownSchoolCashierMethods(order: SchoolOrder): string[] {
+    const info = cashierOrderInfo(schoolCashierPreviewUrl(order));
+    if (info?.partnerid === 'PT000008' && String(info.merchantno) === '20180600021'
+        && String(info.channelno) === '103' && !order.checkoutUrl.includes('&projectPaywayList=')) {
+        return ['微信支付', '支付宝'];
+    }
+    return [];
+}
 let busy = false;
 let submitted = false;
 let pending: SchoolOrder | null = null;
@@ -17,19 +35,60 @@ const HISTORY_KEY = 'zzu.cardOrder.history';
 const CHECKOUT_TTL = 30 * 60 * 1000;
 export interface LocalSchoolOrder { account: string; amountYuan: number; at: number; state: string; reference?: string; payCode?: string; issue?: string }
 class CheckoutFormatError extends Error {}
+interface RechargeResponse {
+    success?: boolean;
+    code?: unknown;
+    message?: unknown;
+    msg?: unknown;
+    resultMsg?: unknown;
+    resultData?: unknown;
+}
+
+function rechargeRejection(result: RechargeResponse): string {
+    const detail = result.resultData as RechargeResponse | null;
+    const message = [result.message, result.msg, result.resultMsg, detail?.message, detail?.msg, detail?.resultMsg, result.resultData]
+        .filter((value): value is string => typeof value === 'string').join(' ');
+    let reason = '下单失败';
+    if (/金额|amount/i.test(message)) {
+        reason = '金额校验失败';
+        if (/最低|低于|最小|下限/.test(message)) reason = '充值金额低于学校要求';
+        else if (/最高|超过|最大|上限/.test(message)) reason = '充值金额超过学校限额';
+    } else if (/过于频繁|太频繁|操作频繁|请求频繁|提交频繁|频率限制|限流|次数(?:过多|超限|已达)|超过.{0,8}次数|too many requests|rate limit/i.test(message)) {
+        reason = '提交频率或次数受限';
+    } else if (/交易授权|交易凭证|交易令牌/.test(message)) reason = '交易授权校验失败';
+    else if (/维护|暂停|关闭/.test(message)) reason = '充值服务暂不可用';
+    else if (/稍后(?:再试|重试)|try again later/i.test(message)) reason = '下单失败并提示稍后再试，具体原因未明确';
+
+    const code = result.code ?? detail?.code;
+    const safeCode = (typeof code === 'string' || typeof code === 'number') && /^-?\d{1,8}$/.test(String(code)) ? String(code) : '';
+    return '学校返回' + reason + '，未提供支付路由' + (safeCode ? '（学校响应码 ' + safeCode + '）' : '');
+}
 // Developer diagnostics deliberately expose structure and payment routing
 // identifiers only, never accessToken/openid/order numbers or raw JSON.
 export async function schoolOrderRouteDiagnostics(): Promise<string> {
     const owner = identity(), before = localSchoolOrder();
-    if (!owner || !before || !supportsEncryptedStorage()) return '当前账号没有可读取的加密订单响应';
+    if (!owner || !before) return '当前账号没有已提交的充值记录。';
+    const lines = [
+        '提交金额：' + before.amountYuan + ' 元',
+        '提交渠道 payCode：' + (before.payCode && /^[A-Za-z0-9_-]{1,32}$/.test(before.payCode) ? before.payCode : '未保存'),
+    ];
+    if (before.issue) {
+        lines.push('本次提交结果：' + before.issue);
+        if (before.issue.startsWith('学校返回暂时限制提交')) {
+            lines.push('旧版也会把「稍后再试」归为暂时限制提交。这笔记录无法确认具体原因。');
+        }
+    }
+    if (!supportsEncryptedStorage()) return lines.concat('当前微信不支持读取加密的收银台响应。').join('\n');
     const value = await new Promise<unknown>(resolve => {
         const timer = setTimeout(() => resolve(null), 3000);
         wx.getStorage({ key: CHECKOUT_KEY, encrypt: true, success: res => { clearTimeout(timer); resolve(res.data); }, fail: () => { clearTimeout(timer); resolve(null); } });
     });
     const saved = value as { account?: string; at?: number; raw?: unknown } | null, after = localSchoolOrder();
-    if (identity() !== owner || !after || after.at !== before.at || !saved || saved.account !== owner || saved.at !== before.at) return '未找到与当前提交匹配的加密响应';
+    if (identity() !== owner || !after || after.at !== before.at) return '订单记录已变化，请重新查看。';
+    if (!saved || saved.account !== owner || saved.at !== before.at || saved.raw == null) {
+        return lines.concat('本机没有保存这笔订单的收银台响应，暂无支付路由可显示。').join('\n');
+    }
     const kind = (v: unknown): string => v === null ? 'null' : Array.isArray(v) ? 'array[' + v.length + ']' : typeof v;
-    const lines = ['提交渠道 payCode：' + (before.payCode && /^[A-Za-z0-9_-]{1,32}$/.test(before.payCode) ? before.payCode : '未保存')];
     const inspect = (name: string, value: unknown) => {
         lines.push(name + '：' + kind(value));
         if (value && typeof value === 'object' && !Array.isArray(value)) Object.keys(value).filter(key => /^[A-Za-z0-9_]{1,50}$/.test(key)).slice(0,40).forEach(key => lines.push(name + '.' + key + '：' + kind((value as Record<string,unknown>)[key])));
@@ -129,10 +188,43 @@ export async function queryAndReconcileSchoolOrder(reference: string): Promise<S
         submitted = false;
         return { ...result, resolvedLocal: true };
     }
+    if (before && same && (result.code === '-1' || result.code === '2')) {
+        let order = pendingSchoolOrder();
+        try {
+            if (!order && supportsEncryptedStorage()) {
+                // The checkout link may be too old to reopen. The identifiers
+                // in its matching record can still be used for a read-only lookup.
+                const saved = await new Promise<unknown>(resolve => {
+                    const timer = setTimeout(() => resolve(null), 3000);
+                    wx.getStorage({ key: CHECKOUT_KEY, encrypt: true, success: res => { clearTimeout(timer); resolve(res.data); }, fail: () => { clearTimeout(timer); resolve(null); } });
+                }) as { account?: string; at?: number; reference?: string; amountYuan?: number; raw?: unknown; checkoutUrl?: string } | null;
+                if (saved?.account === owner && saved.at === before.at && saved.reference === reference && saved.amountYuan === before.amountYuan) {
+                    order = saved.raw !== undefined ? parseSchoolOrder(saved.raw, before.amountYuan)
+                        : { reference, amountYuan: before.amountYuan, checkoutUrl: saved.checkoutUrl || '' };
+                }
+            }
+            if (identity() !== owner || localSchoolOrder()?.at !== before.at) throw new Error('订单记录已变化');
+            const info = order?.reference === reference ? cashierOrderInfo(order.checkoutUrl) : null;
+            const merchantno = String(info?.merchantno || ''), orderno = info?.journo;
+            if (/^\d{1,32}$/.test(merchantno) && typeof orderno === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(orderno)
+                && await isCashierOrderPaid({ merchantno, orderno, amountYuan: before.amountYuan })
+                && identity() === owner && localSchoolOrder()?.at === before.at) {
+                return { ...result, description: '学校收银台确认这笔款项已支付。校园卡到账仍待核对，请查看官方充值流水。', resolvedLocal: false };
+            }
+        } catch (error) {
+            if (identity() === owner && localSchoolOrder()?.at === before.at && error instanceof Error && error.message.includes('域名尚未配置')) {
+                return { ...result, description: result.description + ' 收银台查单还需要配置 payment.v.zzu.edu.cn 请求域名。请在官方充值流水核对到账。', resolvedLocal: false };
+            }
+        }
+    }
+    if (identity() !== owner) throw new Error('账号已变化，请重新查询');
     return { ...result, resolvedLocal: false };
 }
+export function isRechargeAmount(amount: number): boolean {
+    return amount >= 5 && amount <= 1000 && Math.round(amount * 100) / 100 === amount;
+}
 export function validateOrderAmount(amount: number, config: RechargeCapabilities): void {
-    if (!Number.isSafeInteger(amount) || amount < 1 || amount > 1000 || !config.amounts.some(value => Number(value) === amount)) throw new Error('请选择学校提供的整数充值金额');
+    if (!isRechargeAmount(amount)) throw new Error('请输入 5 至 1000 元的充值金额，最多两位小数');
     if (!config.wapEnabled || !config.webPayCode) throw new Error('学校没有返回完整的网页收银台渠道配置');
 }
 export function parseSchoolOrder(data: unknown, amountYuan: number): SchoolOrder {
@@ -143,6 +235,7 @@ export function parseSchoolOrder(data: unknown, amountYuan: number): SchoolOrder
     const numericFields = ['partnerid','merchantno','channelno','txamt'];
     const invalid = fields.filter(key => typeof order[key] !== 'string' && !(numericFields.indexOf(key) >= 0 && typeof order[key] === 'number' && Number.isSafeInteger(order[key])));
     if (invalid.length) throw new CheckoutFormatError('收银台字段缺失或类型不兼容：' + invalid.join('、'));
+    if (Number(order.txamt) !== Math.round(amountYuan * 100)) throw new CheckoutFormatError('收银台金额与确认的充值金额不一致');
     if (!order.journo || typeof extend.accessToken !== 'string' || !extend.accessToken) throw new CheckoutFormatError('收银台流水或临时登录信息缺失');
     const callAccountid = wap.callAccountid;
     if (callAccountid !== undefined && callAccountid !== null && typeof callAccountid !== 'string' && !(typeof callAccountid === 'number' && Number.isSafeInteger(callAccountid))) throw new CheckoutFormatError('收银台渠道账号类型不兼容');
@@ -205,10 +298,16 @@ export async function createSchoolOrder(amountYuan: number): Promise<SchoolOrder
         wx.setStorageSync(LOCK_KEY, { account: owner, amountYuan, at, payCode: config.webPayCode, state: 'unresolved' });
         submitted = true;
         pendingOwner = owner;
+        let issue = '未取得可确认下单结果的学校响应';
         try {
-            const result = await request<{ success: boolean; resultData?: unknown }>(BASE + '/server/recharge/pay', 'POST', { payCode: config.webPayCode!, amt: String(amountYuan), returnUrl: BASE + '/', timestamp: Date.now() }, { Authorization: access, transactionId: transaction.resultData });
-            if (!result || result.success !== true) throw new Error('学校未确认订单创建成功');
+            const result = await request<RechargeResponse>(BASE + '/server/recharge/pay', 'POST', { payCode: config.webPayCode!, amt: String(amountYuan), returnUrl: BASE + '/', timestamp: Date.now() }, { Authorization: access, transactionId: transaction.resultData });
             if (identity() !== owner) throw new Error('账号已变化，请在学校渠道核对原账号订单');
+            if (result?.success === false) {
+                issue = rechargeRejection(result);
+                throw new Error(issue);
+            }
+            if (result?.success !== true) throw new Error(issue);
+            if (result.resultData == null) throw new CheckoutFormatError('学校未返回收银台数据');
             const data = result.resultData as { partnerJourno?: unknown; wapPayInfo?: { orderInfo?: { journo?: unknown } } } | null;
             const reference = data && (data.partnerJourno || (data.wapPayInfo && data.wapPayInfo.orderInfo && data.wapPayInfo.orderInfo.journo));
             if ((typeof reference === 'string' || typeof reference === 'number') && /^\d{10,64}$/.test(String(reference))) wx.setStorageSync(LOCK_KEY, { account: owner, amountYuan, at, payCode: config.webPayCode, state: 'unresolved', reference: String(reference) });
@@ -223,12 +322,15 @@ export async function createSchoolOrder(amountYuan: number): Promise<SchoolOrder
             if (identity() !== owner) throw new Error('账号已变化，请在学校渠道核对原账号订单');
             return order;
         } catch (error) {
+            if (error instanceof CheckoutFormatError) issue = error.message;
+            const saved = localSchoolOrder();
+            if (identity() === owner && saved && saved.at === at) {
+                try { wx.setStorageSync(LOCK_KEY, { ...saved, issue }); } catch (_) { /* keep the existing submission marker */ }
+            }
             if (error instanceof CheckoutFormatError) {
-                const saved = localSchoolOrder();
-                if (saved && saved.at === at) { try { wx.setStorageSync(LOCK_KEY, { ...saved, issue: error.message }); } catch (_) {} }
                 throw new Error('学校已响应，但未取得可用付款链接：' + error.message + '。已保留提交记录，请勿直接重试。');
             }
-            throw new Error('下单请求已发送，结果需要在学校渠道核对；请勿直接重试。尚未确认付款或到账。');
+            throw new Error(issue + '。已保留提交记录，请先在学校渠道核对，勿重复提交。');
         }
     } finally { busy = false; }
 }
