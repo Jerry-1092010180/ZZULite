@@ -4,6 +4,12 @@
   <view class="intro">采用本地存储与学校接口直连方案，未启用微信云开发。此页为临时开发工具。</view>
   <view class="notice">仅请求服务首页，不提交账号密码，不保存响应内容。连接成功不等于业务接口可用。</view>
   <button class="action" bindtap="checkNetwork" loading="{{running}}" disabled="{{running}}">{{running ? '正在检测' : '检测学校服务连接'}}</button>
+  <view class="card">
+    <view class="name">校园卡充值接入检查</view>
+    <view class="notice">使用当前学校登录读取充值渠道；不创建订单、不付款。</view>
+    <button class="action" bindtap="checkRecharge" loading="{{checkingRecharge}}" disabled="{{checkingRecharge}}">读取学校充值渠道</button>
+    <view class="result" style="white-space:pre-wrap" selectable>{{rechargeResult}}</view>
+  </view>
   <view class="card" wx:for="{{services}}" wx:key="url">
     <view class="name">{{item.name}}</view>
     <view class="url">{{item.url}}</view>

@@ -7,7 +7,10 @@
     "pages/diagnostics/diagnostics",
     "pages/campus/campus",
     "pages/grades/grades",
-    "pages/electricity/electricity"
+    "pages/electricity/electricity",
+    "pages/recharge-test/recharge-test",
+    "pages/recharge-cashier/recharge-cashier",
+    "pages/demo/demo"
   ],
   "window": {
     "navigationBarTextStyle": "black",

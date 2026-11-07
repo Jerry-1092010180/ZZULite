@@ -1,6 +1,9 @@
 import * as auth from '../../services/auth';
 import * as campus from '../../services/campus';
 import { isoDate } from '../../services/schedule';
+import { officialCardEntry } from '../../services/electricity';
+// Official school portal only. This page never creates an order, submits a payment or touches funds.
+const RECHARGE_PORTAL = 'https://ecard.v.zzu.edu.cn/';
 interface DisplayRoom {
     id: number;
     name: string;
@@ -10,7 +13,7 @@ interface DisplayRoom {
     }[];
 }
 Page({
-    data: { logged: false, balance: '', balanceError: '', loadingBalance: false, updated: '', campuses: [] as campus.NamedItem[], buildings: [] as campus.NamedItem[], campusIndex: 0, buildingIndex: 0, date: isoDate(new Date()), rooms: [] as DisplayRoom[], loading: false, error: '', queried: false, more: false },
+    data: { showRechargeTest: false, logged: false, balance: '', balanceError: '', loadingBalance: false, openingRecharge: false, updated: '', campuses: [] as campus.NamedItem[], buildings: [] as campus.NamedItem[], campusIndex: 0, buildingIndex: 0, date: isoDate(new Date()), rooms: [] as DisplayRoom[], loading: false, error: '', queried: false, more: false, rechargePortal: RECHARGE_PORTAL, rechargeHint: '' },
     _account: '', _page: 1, _request: 0, _balanceRequest: 0,
     async onShow() {
         await auth.ready();
@@ -19,13 +22,39 @@ Page({
             this._account = account;
             this._request++;
             this._balanceRequest++;
-            this.setData({ balance: '', updated: '', balanceError: '', campuses: [], buildings: [], rooms: [], queried: false, error: '', more: false, loading: false, loadingBalance: false });
+            this.setData({ balance: '', updated: '', balanceError: '', campuses: [], buildings: [], rooms: [], queried: false, error: '', more: false, loading: false, loadingBalance: false, rechargeHint: '' });
         }
-        this.setData({ logged: !!account });
+        let showRechargeTest = false;
+        try { showRechargeTest = wx.getAccountInfoSync().miniProgram.envVersion === 'develop'; } catch (_) {}
+        this.setData({ logged: !!account, showRechargeTest });
     },
     onUnload() { this._request++; this._balanceRequest++; },
     electricity() { wx.navigateTo({url:'/pages/electricity/electricity'}); },
     login() { wx.navigateTo({ url: '/pages/login/login' }); },
+    rechargeTest() { wx.navigateTo({ url: '/pages/recharge-test/recharge-test' }); },
+    async prepareOfficialRecharge() {
+        if (this.data.openingRecharge) return;
+        await auth.ready();
+        const owner = auth.identity();
+        if (!owner) { this.login(); return; }
+        this.setData({ openingRecharge: true, rechargeHint: '' });
+        try {
+            const entry = await officialCardEntry();
+            if (auth.identity() !== owner) return;
+            await new Promise<void>((resolve, reject) => wx.setClipboardData({ data: entry, success: () => resolve(), fail: () => reject(new Error('复制失败，请重新获取入口')) }));
+            if (auth.identity() !== owner) return;
+            this.setData({ rechargeHint: '已复制学校充值入口，请立即退出小程序，在微信「文件传输助手」中粘贴发送给自己并打开。由学校网页选择金额与微信支付。链接包含本人一卡通登录会话，仅供本人使用，不要转发；网页载入后会移除地址中的会话参数。失效时重新获取；本次操作没有创建充值订单。' });
+        } catch (error) {
+            if (auth.identity() === owner) this.setData({ rechargeHint: error instanceof Error ? error.message : '获取学校入口失败，请稍后重试' });
+        } finally { this.setData({ openingRecharge: false }); }
+    },
+    copyRechargeLink() {
+        wx.setClipboardData({
+            data: RECHARGE_PORTAL,
+            success: () => this.setData({ rechargeHint: '已复制。退出小程序，在微信「文件传输助手」中粘贴并发送给自己，再点击链接打开学校入口。若提示登录或无法支付，请回到「豫见郑大 → 一卡通」办理；不要将登录或订单链接发给他人。' }),
+            fail: () => this.setData({ rechargeHint: '复制失败，可长按上方地址手动复制' }),
+        });
+    },
     async balance() {
         if (this.data.loadingBalance)
             return;
@@ -34,7 +63,7 @@ Page({
             return;
         }
         const attempt = ++this._balanceRequest;
-        this.setData({ loadingBalance: true, balanceError: '' });
+        this.setData({ loadingBalance: true, balanceError: '', balance: '', updated: '' });
         try {
             const amount = await campus.cardBalance();
             if (attempt === this._balanceRequest)

@@ -1,6 +1,9 @@
 // Read-only school APIs adapted from ZZUPocket (MIT).
 import { request } from './network';
 import { identity, token } from './auth';
+import { queryRechargeCapabilities } from './card-recharge';
+import { parseBalance } from './card-balance';
+export { parseBalance } from './card-balance';
 export interface NamedItem {
     id: number;
     nameZh: string;
@@ -23,24 +26,11 @@ export interface RoomPage {
     };
 }
 const MICRO = 'https://jwxt.zzu.edu.cn/eams-micro-server/api/v1';
-export function parseBalance(data: unknown): number {
-    if (!Array.isArray(data))
-        throw new Error('校园卡余额数据格式已变化');
-    const candidates = data.map((row, index) => ({ index, amount: row && row.amount }));
-    const valid = candidates.filter(row => (typeof row.amount === 'number' || typeof row.amount === 'string') && String(row.amount).trim() !== '' && Number.isFinite(Number(row.amount)));
-    const chosen = valid.find(row => row.index === 1) || valid[valid.length - 1];
-    if (!chosen)
-        throw new Error('学校没有返回可用的校园卡余额');
-    return Number(chosen.amount);
-}
 export async function cardBalance(): Promise<number> {
     const account = identity();
-    const response = await request<{
-        data: unknown;
-    }>('https://info.s.zzu.edu.cn/portal-api/v1/thrid-adapter/get-person-info-card-list', 'GET', undefined, { 'X-Id-Token': token() });
-    if (identity() !== account)
-        throw new Error('账号已切换，请重新查询');
-    return parseBalance(response && response.data);
+    const config = await queryRechargeCapabilities();
+    if (identity() !== account) throw new Error('账号已切换，请重新查询');
+    return parseBalance({ balance: config.balance });
 }
 async function eas<T>(path: string, method: 'GET' | 'POST' = 'GET', data?: object): Promise<T> {
     const account = identity();

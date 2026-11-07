@@ -1,6 +1,13 @@
 <view class="page"><text class="eyebrow">DORM ELECTRICITY</text><view class="title">宿舍电量</view><view class="subtitle">照明与空调分开查看，单位：度（kWh）</view>
 <view wx:if="{{!logged}}" class="card row"><view><view class="heading">连接学校账号</view><view class="small">已缓存的最近读数仍可查看</view></view><text class="link" bindtap="login">登录 ›</text></view>
-<view wx:for="{{meters}}" wx:key="kind" class="card"><view class="row"><text class="heading">{{item.label}}</text><text class="link" data-kind="{{item.kind}}" bindtap="choose">选择电表 ›</text></view><view class="reading">{{item.value}}<text class="unit"> 度</text></view><view class="small">{{item.name}}</view><view class="small">{{item.time ? '最近成功读取 ' + item.time : '请从学校列表选择对应电表'}}</view></view>
+<view wx:for="{{meters}}" wx:key="kind" class="card">
+  <view class="row"><text class="heading">{{item.label}}</text><text class="link" data-kind="{{item.kind}}" bindtap="choose">选择电表 ›</text></view>
+  <view class="reading">{{item.value}}<text class="unit"> 度</text></view>
+  <view class="small">{{item.name}}</view>
+  <view class="small">{{item.time ? '最近成功读取 ' + item.time : '请从学校列表选择对应电表'}}</view>
+  <button wx:if="{{logged && item.selected}}" class="secondary" data-kind="{{item.kind}}" bindtap="prepareElectricityPayment" loading="{{paymentKind === item.kind}}" disabled="{{!!paymentKind || picking}}">{{item.kind === 'ac' ? '缴空调电费' : '缴照明电费'}}</button>
+</view>
+<view wx:if="{{paymentHint}}" class="small" role="status">{{paymentHint}}</view>
 <button class="primary" bindtap="refresh" loading="{{busy}}" disabled="{{busy}}">刷新电量</button><view wx:if="{{error}}" class="error">{{error}}</view>
 <view wx:if="{{picking}}" class="card"><view class="heading">{{pickerLabel}}</view><view class="small">请核对学校列表中的照明/空调分类及宿舍房间</view><view class="small">{{trail}}</view><picker wx:if="{{nodes.length}}" range="{{nodes}}" range-key="name" value="{{index}}" bindchange="pick" disabled="{{busy}}"><view class="select">{{nodes[index].name || nodes[index].id}} ⌄</view></picker><view wx:if="{{!nodes.length && !busy}}" class="small">没有可选记录，可重新选择电表重试</view><button wx:if="{{nodes.length}}" class="primary" bindtap="next" disabled="{{busy}}" loading="{{busy}}">确认并继续</button><view wx:if="{{pickerError}}" class="error">{{pickerError}}</view><button class="secondary" bindtap="cancel">取消选择</button></view>
 <view class="section heading">最近读数记录</view><view class="card"><view wx:if="{{!history.length}}" class="small">成功查询后开始记录，不补造之前的历史</view><view wx:for="{{history}}" wx:key="id" class="history"><view class="row"><text>{{item.label}}</text><text>{{item.value}} 度</text></view><view class="small">{{item.time}}</view></view></view><view class="small">打开本页时更新已选电表；断网或查询失败时保留上次读数。记录保存在自己的微信本机，关闭小程序后不持续采集。充值、表计修正会使读数增加，读数变化不直接等于耗电统计。</view></view>
